@@ -346,10 +346,9 @@
     <script>
         let gameUrl = null;
         let biosUrl = null;
-        let loadedRomBuffer = null;
         let loadedRomName = "game";
         let targetSavePayload = null;
-        let coreType = 'gba';
+        let coreType = 'mgba';
 
         const labelGame = document.getElementById('label-game');
         const dropGame = document.getElementById('drop-game');
@@ -387,8 +386,16 @@
 
             if (['gba', 'gb', 'gbc', 'nds', 'zip'].includes(ext)) {
                 gameUrl = URL.createObjectURL(file);
-                loadedRomBuffer = new Uint8Array(file.size ? file.size : 0); 
-                coreType = (ext === 'gb' || ext === 'gbc') ? 'gb' : (ext === 'nds' ? 'nds' : 'gba');
+                
+                // FIXED: Map correctly to EmulatorJS structural core identities
+                if (ext === 'gb' || ext === 'gbc') {
+                    coreType = 'gambatte';
+                } else if (ext === 'nds') {
+                    coreType = 'desmume';
+                } else {
+                    coreType = 'mgba'; // Maps default .gba and fallback .zip profiles safely
+                }
+
                 labelGame.innerText = file.name;
                 activateLauncher();
                 statusText.innerText = "Game selected. Ready to start.";
@@ -465,7 +472,6 @@
                     statusText.innerText = "Direct save imported. Ready for ROM (will inject at boot).";
                     labelGame.innerText = `Save staged: ${file.name}`;
                     
-                    // Let the user know if they tried importing while a session was actively open
                     if (window.EJS_emulatorRun) {
                         document.getElementById('toolbar-title').innerText = "Save Cached. Restart Core.";
                         alert("Save data imported to cache! Please refresh or restart the game to run the new save.");
@@ -532,7 +538,6 @@
             
             if (biosUrl) window.EJS_biosUrl = biosUrl;
             
-            // Native initialization handling using standard config variables instead of looping intervals
             if (targetSavePayload) {
                 const b64Str = base64EncodeUint8(targetSavePayload);
                 window.EJS_b64Save = b64Str;
@@ -544,7 +549,6 @@
                 }
             }
 
-            // Hook EmulatorJS's auto-save handler to mirror current progress into state tracking safely
             window.EJS_onSaveState = function(data) {
                 if (data && data.b64) {
                     localStorage.setItem(`${loadedRomName}_save`, data.b64);
@@ -571,7 +575,6 @@
         });
 
         function fitViewport() {
-            const viewport = document.getElementById('viewport');
             const gameEl = document.getElementById('game');
             const canvas = gameEl.querySelector('canvas');
             if (canvas) {
@@ -599,7 +602,6 @@
             'ShiftLeft': 'ShiftLeft'
         };
 
-        // Fallback layout key map specifically designed for WebAssembly/Emscripten core configurations
         const KEY_CODES = {
             'ArrowUp': 38, 'ArrowDown': 40, 'ArrowLeft': 37, 'ArrowRight': 39,
             'KeyZ': 90, 'KeyX': 88, 'Enter': 13, 'ShiftLeft': 16
