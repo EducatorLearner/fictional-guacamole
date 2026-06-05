@@ -1,10 +1,4 @@
-To make the Nintendo DS canvas fill the entire screen when you go into fullscreen mode, we need to adjust the CSS.
 
-Because Emulator.js embeds its own player elements inside your `#game` div, adding a custom fullscreen CSS selector ensures that when the viewport goes fullscreen, the underlying canvas stretches to fill `100vw` and `100vh` rather than staying locked to its aspect ratio container.
-
-Here is your updated code. The only addition is a set of fullscreen-specific CSS rules inside the `<style>` tag. Everything else remains exactly the same.
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 
