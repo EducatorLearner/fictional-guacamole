@@ -1,0 +1,666 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport"
+        content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>GBA Cloud Experiment</title>
+    <style>
+        :root {
+            --primary: #7C4DFF;
+            --bg: #050505;
+            --surface: rgba(30, 30, 35, 0.6);
+            --ui-size: clamp(44px, 6.5vw, 72px);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: none;
+        }
+
+        html,
+        body {
+            height: 100%;
+            margin: 0;
+            background: var(--bg);
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, system-ui, sans-serif;
+            overflow: hidden;
+        }
+
+        #root {
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            background-image: radial-gradient(circle at 50% 10%, #2a1a4a 0%, #000 60%);
+        }
+
+        .viewport-wrap {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+        }
+
+        .viewport {
+            position: relative;
+            width: 100%;
+            max-width: 1100px;
+            aspect-ratio: 3/2;
+            background: #000;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 30px 60px rgba(0, 0, 0, 0.7);
+        }
+
+        #game {
+            width: 100%;
+            height: 100%;
+            display: block;
+            touch-action: none;
+        }
+
+        .save-toolbar {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: rgba(0, 0, 0, 0.85);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 16px;
+            transform: translateY(-100%);
+            transition: transform 0.25s ease-in-out;
+            z-index: 50;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .viewport:hover .save-toolbar,
+        .save-toolbar:focus-within {
+            transform: translateY(0);
+        }
+
+        .toolbar-group {
+            display: flex;
+            gap: 10px;
+        }
+
+        .toolbar-btn {
+            background: rgba(255, 255, 255, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            color: #fff;
+            padding: 6px 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: background 0.2s;
+        }
+
+        .toolbar-btn:hover {
+            background: var(--primary);
+            border-color: transparent;
+        }
+
+        #launcher {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 40;
+            backdrop-filter: blur(18px);
+            transition: opacity .35s ease, transform .35s ease;
+        }
+
+        .card {
+            background: var(--surface);
+            padding: 2rem;
+            border-radius: 20px;
+            width: 92%;
+            max-width: 420px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            text-align: center;
+        }
+
+        h1 {
+            margin: 0 0 .5rem;
+            font-size: 1.6rem;
+        }
+
+        p {
+            color: #cfcfcf;
+            margin: 0 0 1rem;
+        }
+
+        .drop-zone {
+            border: 2px dashed #444;
+            border-radius: 12px;
+            padding: 14px;
+            cursor: pointer;
+            margin-bottom: 12px;
+        }
+
+        .drop-zone.active,
+        .drop-zone:hover {
+            border-color: var(--primary);
+            background: rgba(124, 77, 255, 0.06);
+        }
+
+        .file-name {
+            color: var(--primary);
+            font-weight: 600;
+            display: block;
+            margin-top: 6px;
+        }
+
+        .btn-launch {
+            background: #fff;
+            color: #000;
+            padding: 14px;
+            border-radius: 12px;
+            border: none;
+            font-weight: 700;
+            width: 100%;
+            opacity: .6;
+            cursor: pointer;
+            transition: all .2s;
+        }
+
+        .btn-launch.ready {
+            opacity: 1;
+            box-shadow: 0 10px 30px rgba(124, 77, 255, 0.12);
+        }
+
+        .settings-link {
+            margin-top: 10px;
+            color: #aaa;
+            font-size: .85rem;
+            cursor: pointer;
+        }
+
+        .status-msg {
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-top: 8px;
+            min-height: 18px;
+        }
+
+        .hidden {
+            opacity: 0;
+            transform: scale(1.05);
+            pointer-events: none;
+        }
+
+        .touch-controls {
+            position: absolute;
+            inset: 0;
+            z-index: 30;
+            pointer-events: none;
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            padding: 1rem;
+            gap: 1rem;
+        }
+
+        .dpad,
+        .buttons {
+            pointer-events: auto;
+            display: flex;
+            gap: .6rem;
+            align-items: center;
+        }
+
+        .dpad {
+            flex-direction: column;
+            width: calc(var(--ui-size) * 2);
+            height: calc(var(--ui-size) * 2);
+            justify-content: center;
+        }
+
+        .dpad .row,
+        .action-row,
+        .small-row {
+            display: flex;
+            gap: .6rem;
+            justify-content: center;
+        }
+
+        .control-btn {
+            width: var(--ui-size);
+            height: var(--ui-size);
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 700;
+            user-select: none;
+            -webkit-user-select: none;
+            box-shadow: 0 6px 18px rgba(0, 0, 0, 0.6);
+        }
+
+        .control-btn:active {
+            transform: scale(.98);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .btn-large {
+            width: calc(var(--ui-size) * 1.4);
+            height: calc(var(--ui-size) * 1.4);
+            border-radius: 16px;
+        }
+
+        .buttons {
+            flex-direction: column;
+            align-items: flex-end;
+        }
+
+        @media(min-width:900px) {
+            .touch-controls {
+                display: none;
+            }
+        }
+
+        @media(max-width:420px) {
+            :root {
+                --ui-size: clamp(44px, 12vw, 64px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="root">
+        <div id="launcher">
+            <div class="card">
+                <h1>Fast Emulator Experiment</h1>
+                <p>Emulator.js + emu2 save/load/export experiment with GBA, GB, GBC and NDS support</p>
+
+                <div class="drop-zone" id="drop-game" onclick="document.getElementById('in-file').click()">
+                    <span class="drop-label">TAP TO SELECT GAME OR SAVE FILE</span>
+                    <span class="file-name" id="label-game">No File Selected</span>
+                </div>
+
+                <input type="file" id="in-file" accept=".gba,.gb,.gbc,.nds,.zip,.sav,.srm,.eclipse,application/json"
+                    style="display:none;">
+                <input type="file" id="in-bios" accept=".bin" onchange="handleBios(this)" style="display:none;">
+                <input type="file" id="in-save-direct" accept=".sav,.srm,.eclipse,application/json"
+                    style="display:none;">
+
+                <button class="btn-launch" id="btn-start" onclick="bootEngine()" disabled>Start Engine</button>
+                <div class="status-msg" id="status-text">Ready for file injection...</div>
+                <div class="settings-link" onclick="document.getElementById('in-bios').click()">+ Add Custom BIOS</div>
+            </div>
+        </div>
+
+        <div class="viewport-wrap">
+            <div class="viewport" id="viewport">
+                <div class="save-toolbar">
+                    <span style="font-size:0.85rem; font-weight:600;" id="toolbar-title">In-Game Active</span>
+                    <div class="toolbar-group">
+                        <button class="toolbar-btn" onclick="document.getElementById('in-save-direct').click()">Import
+                            Save (.sav/.srm/.eclipse)</button>
+                        <button class="toolbar-btn" onclick="exportBatterySave()">Export Raw Save</button>
+                    </div>
+                </div>
+                <div id="game" aria-label="Emulator viewport"></div>
+            </div>
+        </div>
+
+        <div class="touch-controls" id="touchControls" aria-hidden="true">
+            <div class="dpad" id="dpad">
+                <div class="row">
+                    <div class="control-btn" data-key="ArrowUp" title="Up">▲</div>
+                </div>
+                <div class="row">
+                    <div class="control-btn" data-key="ArrowLeft" title="Left">◀</div>
+                    <div class="control-btn" data-key="ArrowDown" title="Down">▼</div>
+                    <div class="control-btn" data-key="ArrowRight" title="Right">▶</div>
+                </div>
+            </div>
+            <div class="buttons">
+                <div class="action-row">
+                    <div class="control-btn btn-large" data-key="KeyZ" title="A">A</div>
+                    <div class="control-btn btn-large" data-key="KeyX" title="B">B</div>
+                </div>
+                <div class="small-row">
+                    <div class="control-btn" data-key="Enter" title="Start">Start</div>
+                    <div class="control-btn" data-key="ShiftLeft" title="Select">Select</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let gameUrl = null;
+        let biosUrl = null;
+        let loadedRomBuffer = null;
+        let loadedRomName = "game";
+        let targetSavePayload = null;
+        let coreType = 'gba';
+
+        const labelGame = document.getElementById('label-game');
+        const dropGame = document.getElementById('drop-game');
+        const btnStart = document.getElementById('btn-start');
+        const launcher = document.getElementById('launcher');
+        const touchControls = document.getElementById('touchControls');
+        const statusText = document.getElementById('status-text');
+        const saveDirectInput = document.getElementById('in-save-direct');
+
+        const dropZone = document.getElementById('drop-game');
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => { e.preventDefault(); dropZone.classList.add('active'); }, false);
+        });
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, e => { e.preventDefault(); dropZone.classList.remove('active'); }, false);
+        });
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            if (files && files.length) handleIncomingFile(files[0]);
+        });
+
+        document.getElementById('in-file').addEventListener('change', e => {
+            if (e.target.files.length > 0) handleIncomingFile(e.target.files[0]);
+        });
+
+        saveDirectInput.addEventListener('change', e => {
+            if (e.target.files.length > 0) injectDirectSave(e.target.files[0]);
+        });
+
+        function handleIncomingFile(file) {
+            if (!file) return;
+            const ext = file.name.split('.').pop().toLowerCase();
+            loadedRomName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+
+            if (['gba', 'gb', 'gbc', 'nds', 'zip'].includes(ext)) {
+                gameUrl = URL.createObjectURL(file);
+                loadedRomBuffer = new Uint8Array(file.size ? file.size : 0); 
+                coreType = (ext === 'gb' || ext === 'gbc') ? 'gb' : (ext === 'nds' ? 'nds' : 'gba');
+                labelGame.innerText = file.name;
+                activateLauncher();
+                statusText.innerText = "Game selected. Ready to start.";
+            }
+            else if (['sav', 'srm'].includes(ext)) {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    targetSavePayload = new Uint8Array(e.target.result);
+                    statusText.innerText = `Save file (.${ext}) staged. Load ROM next.`;
+                    labelGame.innerText = `Save staged: ${file.name}`;
+                };
+                reader.readAsArrayBuffer(file);
+            }
+            else if (ext === 'eclipse' || ext === 'json') {
+                const reader = new FileReader();
+                reader.onload = function (e) {
+                    try {
+                        const parsedJson = JSON.parse(e.target.result);
+                        processEclipseBackup(parsedJson);
+                    } catch (err) {
+                        statusText.innerText = "Error parsing configuration structure.";
+                    }
+                };
+                reader.readAsText(file);
+            }
+            else {
+                statusText.innerText = "Unsupported file type. Use ROM, save, or Eclipse backup.";
+            }
+        }
+
+        function processEclipseBackup(json) {
+            try {
+                let saves = json.saves || (json.storage ? json.storage.saves : null);
+                if (!saves && json.data && json.data.saves) saves = json.data.saves;
+                if (!saves) {
+                    statusText.innerText = "No save data found inside .eclipse file.";
+                    return;
+                }
+                let foundKey = Object.keys(saves)[0];
+                if (!foundKey) {
+                    statusText.innerText = "No save index found inside .eclipse file.";
+                    return;
+                }
+                let rawDataString = saves[foundKey];
+                if (typeof rawDataString === 'string') {
+                    if (rawDataString.startsWith('data:')) {
+                        rawDataString = rawDataString.split(',')[1];
+                    }
+                    const binaryString = atob(rawDataString);
+                    const bytes = new Uint8Array(binaryString.length);
+                    for (let i = 0; i < binaryString.length; i++) {
+                        bytes[i] = binaryString.charCodeAt(i);
+                    }
+                    targetSavePayload = bytes;
+                    statusText.innerText = "Eclipse Save injected safely. Ready for ROM.";
+                    labelGame.innerText = `Save staged: ${foundKey}`;
+                }
+            } catch (e) {
+                statusText.innerText = "Critical error reading .eclipse JSON file.";
+                console.error(e);
+            }
+        }
+
+        function injectDirectSave(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                const saveBytes = new Uint8Array(e.target.result);
+                const b64Str = base64EncodeUint8(saveBytes);
+                targetSavePayload = saveBytes;
+                
+                try { 
+                    localStorage.setItem(`${loadedRomName}_save`, b64Str); 
+                    statusText.innerText = "Direct save imported. Ready for ROM (will inject at boot).";
+                    labelGame.innerText = `Save staged: ${file.name}`;
+                    
+                    // Let the user know if they tried importing while a session was actively open
+                    if (window.EJS_emulatorRun) {
+                        document.getElementById('toolbar-title').innerText = "Save Cached. Restart Core.";
+                        alert("Save data imported to cache! Please refresh or restart the game to run the new save.");
+                    }
+                } catch (err) { 
+                    console.warn('localStorage set failed', err); 
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function activateLauncher() {
+            btnStart.classList.add('ready');
+            btnStart.removeAttribute('disabled');
+            dropGame.classList.add('active');
+        }
+
+        function base64EncodeUint8(bytes) {
+            let binary = '';
+            const len = bytes.byteLength;
+            for (let i = 0; i < len; i++) {
+                binary += String.fromCharCode(bytes[i]);
+            }
+            return btoa(binary);
+        }
+
+        function exportBatterySave() {
+            let base64Data = localStorage.getItem(`${loadedRomName}_save`);
+            if (!base64Data) {
+                alert("No save data available to export. Make sure you have made in-game progress or imported a save file.");
+                return;
+            }
+            const binaryString = atob(base64Data);
+            const dataArray = new Uint8Array(binaryString.length);
+            for (let i = 0; i < binaryString.length; i++) {
+                dataArray[i] = binaryString.charCodeAt(i);
+            }
+            const blob = new Blob([dataArray], { type: "application/octet-stream" });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${loadedRomName}.sav`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function handleBios(input) {
+            const file = input.files && input.files[0];
+            if (!file) return;
+            biosUrl = URL.createObjectURL(file);
+            document.querySelector('#label-bios')?.remove?.();
+        }
+
+        function bootEngine() {
+            if (!gameUrl) return;
+            launcher.classList.add('hidden');
+            setTimeout(() => launcher.style.display = 'none', 400);
+
+            window.EJS_player = '#game';
+            window.EJS_core = coreType;
+            window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
+            window.EJS_startOnLoaded = true;
+            window.EJS_gameUrl = gameUrl;
+            
+            if (biosUrl) window.EJS_biosUrl = biosUrl;
+            
+            // Native initialization handling using standard config variables instead of looping intervals
+            if (targetSavePayload) {
+                const b64Str = base64EncodeUint8(targetSavePayload);
+                window.EJS_b64Save = b64Str;
+                localStorage.setItem(`${loadedRomName}_save`, b64Str);
+            } else {
+                const existingSave = localStorage.getItem(`${loadedRomName}_save`);
+                if (existingSave) {
+                    window.EJS_b64Save = existingSave;
+                }
+            }
+
+            // Hook EmulatorJS's auto-save handler to mirror current progress into state tracking safely
+            window.EJS_onSaveState = function(data) {
+                if (data && data.b64) {
+                    localStorage.setItem(`${loadedRomName}_save`, data.b64);
+                    document.getElementById('toolbar-title').innerText = "Save Synchronized Live";
+                }
+            };
+
+            window.EJS_Buttons = { play: false, restart: true, save: true, load: true, settings: true, fullscreen: true };
+
+            if (window.innerWidth < 900) touchControls.style.pointerEvents = 'auto';
+
+            const script = document.createElement('script');
+            script.src = 'https://cdn.emulatorjs.org/stable/data/loader.js';
+            script.onload = () => { statusText.innerText = 'Emulator core initialized.'; };
+            script.onerror = () => { statusText.innerText = 'Failed to load emulator loader.'; };
+            document.body.appendChild(script);
+        }
+
+        window.addEventListener('dragover', e => e.preventDefault());
+        window.addEventListener('drop', e => {
+            e.preventDefault();
+            const files = e.dataTransfer.files;
+            if (files && files.length) handleIncomingFile(files[0]);
+        });
+
+        function fitViewport() {
+            const viewport = document.getElementById('viewport');
+            const gameEl = document.getElementById('game');
+            const canvas = gameEl.querySelector('canvas');
+            if (canvas) {
+                canvas.style.width = '100%';
+                canvas.style.height = '100%';
+                canvas.style.objectFit = 'contain';
+                canvas.style.touchAction = 'none';
+            } else {
+                gameEl.style.width = '100%';
+                gameEl.style.height = '100%';
+            }
+        }
+
+        const ro = new ResizeObserver(fitViewport);
+        ro.observe(document.getElementById('viewport'));
+
+        const KEY_MAP = {
+            'ArrowUp': 'ArrowUp',
+            'ArrowDown': 'ArrowDown',
+            'ArrowLeft': 'ArrowLeft',
+            'ArrowRight': 'ArrowRight',
+            'KeyZ': 'KeyZ',
+            'KeyX': 'KeyX',
+            'Enter': 'Enter',
+            'ShiftLeft': 'ShiftLeft'
+        };
+
+        // Fallback layout key map specifically designed for WebAssembly/Emscripten core configurations
+        const KEY_CODES = {
+            'ArrowUp': 38, 'ArrowDown': 40, 'ArrowLeft': 37, 'ArrowRight': 39,
+            'KeyZ': 90, 'KeyX': 88, 'Enter': 13, 'ShiftLeft': 16
+        };
+
+        function synthKey(key, type) {
+            const codeValue = KEY_CODES[key] || 0;
+            const ev = new KeyboardEvent(type, { 
+                key: key, 
+                code: key, 
+                keyCode: codeValue,
+                which: codeValue,
+                bubbles: true, 
+                cancelable: true 
+            });
+            window.dispatchEvent(ev);
+        }
+
+        function bindTouchButtons() {
+            const buttons = document.querySelectorAll('.control-btn');
+            buttons.forEach(btn => {
+                let active = false;
+                const key = btn.dataset.key;
+                if (!key) return;
+
+                const start = (e) => {
+                    e.preventDefault();
+                    if (active) return;
+                    active = true;
+                    btn.classList.add('active');
+                    synthKey(KEY_MAP[key] || key, 'keydown');
+                };
+                const end = (e) => {
+                    e.preventDefault();
+                    if (!active) return;
+                    active = false;
+                    btn.classList.remove('active');
+                    synthKey(KEY_MAP[key] || key, 'keyup');
+                };
+
+                btn.addEventListener('pointerdown', start, { passive: false });
+                btn.addEventListener('pointerup', end);
+                btn.addEventListener('pointercancel', end);
+                btn.addEventListener('pointerleave', end);
+                btn.addEventListener('contextmenu', e => e.preventDefault());
+            });
+        }
+        bindTouchButtons();
+
+        window.addEventListener('load', () => {
+            setTimeout(fitViewport, 300);
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (e.code === 'KeyT') {
+                const tc = document.getElementById('touchControls');
+                const currentDisplay = window.getComputedStyle(tc).display;
+                tc.style.display = (currentDisplay === 'none') ? 'flex' : 'none';
+            }
+        });
+    </script>
+</body>
+
+</html>
