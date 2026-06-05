@@ -391,7 +391,7 @@
                 if (ext === 'gb' || ext === 'gbc') {
                     coreType = 'gambatte';
                 } else if (ext === 'nds') {
-                    coreType = 'desmume';
+                    coreType = 'melonds'; // Modded to target melonDS instead of desmume
                 } else {
                     coreType = 'mgba';
                 }
@@ -538,12 +538,14 @@
             
             if (biosUrl) window.EJS_biosUrl = biosUrl;
             
-            // PERFORMANCE OPTIMIZATIONS FOR NDS
+            // PERFORMANCE OPTIMIZATIONS FOR MELONDS
             window.EJS_Settings = {
                 frameskip: "1" 
             };
             window.EJS_coreConfig = {
-                "desmume_internal_resolution": "256x192" 
+                "melonds_threaded_rendering": "enabled",
+                "melonds_screen_layout": "0",
+                "melonds_boot_directly": "enabled"
             };
             window.EJS_forceSmooth = false;
             
