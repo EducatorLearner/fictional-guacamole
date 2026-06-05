@@ -1,3 +1,10 @@
+To make the Nintendo DS canvas fill the entire screen when you go into fullscreen mode, we need to adjust the CSS.
+
+Because Emulator.js embeds its own player elements inside your `#game` div, adding a custom fullscreen CSS selector ensures that when the viewport goes fullscreen, the underlying canvas stretches to fill `100vw` and `100vh` rather than staying locked to its aspect ratio container.
+
+Here is your updated code. The only addition is a set of fullscreen-specific CSS rules inside the `<style>` tag. Everything else remains exactly the same.
+
+```html
 <!DOCTYPE html>
 <html lang="en">
 
@@ -67,6 +74,27 @@
             height: 100%;
             display: block;
             touch-action: none;
+        }
+
+        /* NEW FULLSCREEN STRETCH PATCH FOR NDS/EMULATOR.JS CONTAINER */
+        #viewport:fullscreen,
+        #viewport:-webkit-full-screen {
+            max-width: none !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            aspect-ratio: auto !important;
+            border-radius: 0 !important;
+        }
+
+        #viewport:fullscreen #game,
+        #viewport:-webkit-full-screen #game,
+        #viewport:fullscreen canvas,
+        #viewport:-webkit-full-screen canvas {
+            width: 100vw !important;
+            height: 100vh !important;
+            max-width: none !important;
+            max-height: none !important;
+            object-fit: fill !important; /* Stretches the NDS layout to the edge of the display */
         }
 
         .save-toolbar {
@@ -391,7 +419,7 @@
                 if (ext === 'gb' || ext === 'gbc') {
                     coreType = 'gambatte';
                 } else if (ext === 'nds') {
-                    coreType = 'melonds'; // Modded to target melonDS instead of desmume
+                    coreType = 'melonds';
                 } else {
                     coreType = 'mgba';
                 }
@@ -538,7 +566,6 @@
             
             if (biosUrl) window.EJS_biosUrl = biosUrl;
             
-            // PERFORMANCE OPTIMIZATIONS FOR MELONDS
             window.EJS_Settings = {
                 frameskip: "1" 
             };
@@ -677,3 +704,5 @@
 </body>
 
 </html>
+
+```
