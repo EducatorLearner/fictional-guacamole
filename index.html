@@ -388,13 +388,12 @@
             if (['gba', 'gb', 'gbc', 'nds', 'zip'].includes(ext)) {
                 gameUrl = URL.createObjectURL(file);
                 
-                // FIXED: Map correctly to EmulatorJS structural core identities
                 if (ext === 'gb' || ext === 'gbc') {
                     coreType = 'gambatte';
                 } else if (ext === 'nds') {
                     coreType = 'desmume';
                 } else {
-                    coreType = 'mgba'; // Maps default .gba and fallback .zip profiles safely
+                    coreType = 'mgba';
                 }
 
                 labelGame.innerText = file.name;
@@ -538,6 +537,15 @@
             window.EJS_gameUrl = gameUrl;
             
             if (biosUrl) window.EJS_biosUrl = biosUrl;
+            
+            // PERFORMANCE OPTIMIZATIONS FOR NDS
+            window.EJS_Settings = {
+                frameskip: "1" 
+            };
+            window.EJS_coreConfig = {
+                "desmume_internal_resolution": "256x192" 
+            };
+            window.EJS_forceSmooth = false;
             
             if (targetSavePayload) {
                 const b64Str = base64EncodeUint8(targetSavePayload);
