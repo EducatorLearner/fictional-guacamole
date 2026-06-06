@@ -1,4 +1,4 @@
-readme_content = """# Fast Emulator Experiment
+ Fast Emulator Experiment
 
 A browser-based retro console emulator leveraging the [EmulatorJS](https://emulatorjs.org/) framework. This project provides a clean, modern interface for playing classic games with advanced save management and mobile support.
 
