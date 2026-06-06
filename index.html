@@ -1,6 +1,3 @@
-
-
-```html
 <!DOCTYPE html>
 <html lang="en">
 
@@ -72,25 +69,35 @@
             touch-action: none;
         }
 
-        /* NEW FULLSCREEN STRETCH PATCH FOR NDS/EMULATOR.JS CONTAINER */
-        #viewport:fullscreen,
-        #viewport:-webkit-full-screen {
+        /* FIXED FULLSCREEN STRETCH PATCH FOR NDS/EMULATOR.JS CONTAINER */
+        .viewport:fullscreen,
+        .viewport:-webkit-full-screen {
             max-width: none !important;
             width: 100vw !important;
             height: 100vh !important;
             aspect-ratio: auto !important;
             border-radius: 0 !important;
+            padding: 0 !important;
         }
 
-        #viewport:fullscreen #game,
-        #viewport:-webkit-full-screen #game,
-        #viewport:fullscreen canvas,
-        #viewport:-webkit-full-screen canvas {
+        /* Target all intermediate dynamically generated EmulatorJS wrappers */
+        .viewport:fullscreen #game,
+        .viewport:-webkit-full-screen #game,
+        .viewport:fullscreen canvas,
+        .viewport:-webkit-full-screen canvas,
+        .viewport:fullscreen [id*="emulator"], 
+        .viewport:-webkit-full-screen [id*="emulator"],
+        .viewport:fullscreen .ejs-wrapper,
+        .viewport:-webkit-full-screen .ejs-wrapper {
             width: 100vw !important;
             height: 100vh !important;
             max-width: none !important;
             max-height: none !important;
-            object-fit: fill !important; /* Stretches the NDS layout to the edge of the display */
+            min-width: 100vw !important;
+            min-height: 100vh !important;
+            object-fit: fill !important; 
+            inset: 0 !important;
+            position: absolute !important;
         }
 
         .save-toolbar {
@@ -338,6 +345,7 @@
                         <button class="toolbar-btn" onclick="document.getElementById('in-save-direct').click()">Import
                             Save (.sav/.srm/.eclipse)</button>
                         <button class="toolbar-btn" onclick="exportBatterySave()">Export Raw Save</button>
+                        <button class="toolbar-btn" onclick="document.getElementById('viewport').requestFullscreen()">Fullscreen</button>
                     </div>
                 </div>
                 <div id="game" aria-label="Emulator viewport"></div>
@@ -700,7 +708,6 @@
 </body>
 
 </html>
-
 
 
 
