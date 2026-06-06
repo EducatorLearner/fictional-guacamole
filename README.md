@@ -27,3 +27,7 @@ To fix this on static hosts like **GitHub Pages**, this project uses a Service W
 
 ### Quick Start (Local)
 If you have Python installed, you can quickly test the emulator locally:
+
+Note
+If you choose to skip 3 frames game might look choppy. 2 frames is ok, recommended to leave it to default.
+
