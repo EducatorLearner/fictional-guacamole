@@ -1,7 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
+<!DOCTYPE html><html lang="en"><head>
     <script src="coi-serviceworker.js"></script>
     <meta charset="utf-8">
     <meta name="viewport"
@@ -195,6 +192,40 @@
             margin-top: 6px;
         }
 
+        .settings-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.2);
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            margin-bottom: 16px;
+            text-align: left;
+        }
+
+        .settings-row label {
+            font-size: 0.85rem;
+            color: #cfcfcf;
+            font-weight: 500;
+        }
+
+        .settings-row select {
+            background: #151518;
+            color: #fff;
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 6px 10px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+
+        .settings-row select:focus {
+            border-color: var(--primary);
+        }
+
         .btn-launch {
             background: #fff;
             color: #000;
@@ -310,10 +341,7 @@
                 --ui-size: clamp(44px, 12vw, 64px);
             }
         }
-    </style>
-</head>
-
-<body>
+    </style></head><body>
     <div id="root">
         <div id="launcher">
             <div class="card">
@@ -323,6 +351,16 @@
                 <div class="drop-zone" id="drop-game" onclick="document.getElementById('in-file').click()">
                     <span class="drop-label">TAP TO SELECT GAME OR SAVE FILE</span>
                     <span class="file-name" id="label-game">No File Selected</span>
+                </div>
+
+                <div class="settings-row">
+                    <label for="select-frameskip">Frame Cap / Sync:</label>
+                    <select id="select-frameskip">
+                        <option value="1">Auto Balance (Default)</option>
+                        <option value="0">Strict Lock (Fix High Frames)</option>
+                        <option value="2">Skip 2 Frames (Performance)</option>
+                        <option value="3">Skip 3 Frames (Max Boost)</option>
+                    </select>
                 </div>
 
                 <input type="file" id="in-file" accept=".gba,.gb,.gbc,.nds,.zip,.sav,.srm,.eclipse,application/json"
@@ -570,9 +608,12 @@
             
             if (biosUrl) window.EJS_biosUrl = biosUrl;
             
+            // DYNAMICALLY GRAB SELECTED FRAMESKIP SETTING
+            const userFrameskip = document.getElementById('select-frameskip').value;
             window.EJS_Settings = {
-                frameskip: "1" 
+                frameskip: userFrameskip 
             };
+            
             window.EJS_coreConfig = {
                 "melonds_threaded_rendering": "enabled",
                 "melonds_screen_layout": "0",
@@ -704,10 +745,7 @@
                 tc.style.display = (currentDisplay === 'none') ? 'flex' : 'none';
             }
         });
-    </script>
-</body>
-
-</html>
+    </script></body></html>
 
 
 
