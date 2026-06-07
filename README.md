@@ -1,33 +1,3 @@
- Fast Emulator Experiment
-
-A browser-based retro console emulator leveraging the [EmulatorJS](https://emulatorjs.org/) framework. This project provides a clean, modern interface for playing classic games with advanced save management and mobile support.
-
-## Supported Consoles
-* **Game Boy Advance (GBA)** - Uses `mGBA` core
-* **Game Boy / Game Boy Color (GB/GBC)** - Uses `Gambatte` core
-* **Nintendo DS (NDS)** - Uses `melonDS` core (Optimized with threaded rendering and frameskipping)
-
-## Features
-* **Drag & Drop Loading:** Easily load ROMs (`.gba`, `.gb`, `.gbc`, `.nds`, `.zip`) by dragging them into the browser.
-* **Save State Management:** * Export raw battery saves (`.sav`) to your local device.
-    * Import existing saves directly (`.sav`, `.srm`, or Eclipse-formatted `.json`/`.eclipse` files).
-* **Mobile Ready:** Includes on-screen virtual touch controls (D-Pad, A, B, Start, Select) that automatically appear on smaller screens.
-* **Custom BIOS:** Optionally load custom BIOS files (`.bin`) before booting the emulator.
-* **True Fullscreen:** Custom CSS patches ensure NDS emulation stretches perfectly to fill modern widescreen displays.
-
-## Setup & Hosting (Important!)
-
-Because modern emulator cores (WebAssembly) require high-performance memory sharing, they rely on a browser feature called `SharedArrayBuffer`. Browsers block this by default for security reasons unless specific server headers are sent.
-
-To fix this on static hosts like **GitHub Pages**, this project uses a Service Worker to inject the required headers.
-
-### Requirements to Run:
-1.  Both `index.html` and `coi-serviceworker.js` must be in the same directory.
-2.  You **must** serve the files over `https://` (or `localhost` for testing). Opening the HTML file directly from your file system (`file://`) will not work.
-
-### Quick Start (Local)
-If you have Python installed, you can quickly test the emulator locally:
-
-Note:
-If you choose to skip 3 frames game might look choppy. 2 frames is ok, recommended to leave it to default.
+🎮 Fast Emulator ExperimentA modern, browser-based retro console emulator pipeline leveraging the EmulatorJS framework. This project provides a clean, responsive interface for playing classic games with advanced save management and mobile layout optimization.🕹️ Supported ConsolesGame Boy Advance (GBA): Powered by the high-accuracy mGBA core.Game Boy / Game Boy Color (GB/GBC): Powered by the lightweight Gambatte core.Nintendo DS (NDS): Powered by the melonDS core, optimized with frameskipping.🌟 Core Features📂 File & Core ManagementSmart Drag & Drop Loading: Instantly load game files (.gba, .gb, .gbc, .nds, .zip) by dragging them straight into your browser window.Automatic Engine Selection: The application automatically swaps internal emulator cores based on the extension of your dropped file.Custom BIOS Injection: Load official console BIOS binaries (.bin) to improve game compatibility and boot sequences.💾 Advanced Save PipelineRaw Battery Export: Download your standard .sav backup files to keep your game saves safe on your local drive.Multi-Format Importing: Read game progress from raw files (.sav, .srm) or cross-platform emulator files (.json, .eclipse).IndexedDB Binary Chunking: Splits heavy game data into small virtual fragments to cleanly bypass the browser's strict 5MB storage limits.Upstream Cloud Link: Includes an architecture hook (performCloudBackup) ready to bridge your save states to remote storage endpoints.📱 Mobile & Interface LayoutsDraggable Touch Overlays: Tap and reposition on-screen virtual buttons (D-Pad, A, B, Turbo, Start, Select) anywhere on your screen.Smart Coordinate Memory: Button layouts are automatically saved to localStorage so you do not lose your layout setup on refresh.Adaptive Visibility: Touch pads automatically hide on desktop displays and scale smoothly across varying mobile viewports.True Fullscreen Scaling: Utilizes custom CSS rules to override standard scaling limits and stretch viewports nicely on widescreen monitors.⚙️ Performance ControlsDynamic Frameskip Balancing: Select performance profiles ranging from Strict Synchronization up to Max Boost Frame Skipping.One-Tap Turbo Execution: Speed past slow text sequences using a dedicated fast-forward toolbar toggle.🚨 Critical Hosting SetupBecause modern emulator cores rely on high-performance memory sharing (SharedArrayBuffer), browsers block them by default. This project uses a custom Service Worker pipeline (coi-serviceworker.js) to fix this security lock.Deployment Rules:Both index.html and coi-serviceworker.js must stay together in the exact same directory.Your website must be served over an encrypted connection (https://) or a local development loop (localhost).Opening the raw file directly via your desktop file directory (file://) will not work.🚀 Quick Start (Local Development)If you have Python installed on your computer, you can run a quick local server loop to test the code:Open your terminal application inside your project folder.Run the local host server command:bashpython -m http.server 8000
+Use code with caution.Open your web browser and navigate to: http://localhost:8000⚠️ Performance Note: Setting the frame cap setting to 3 frames might make gameplay look choppy. A setting of 2 frames is acceptable for slower devices, but it is highly recommended to leave it on the Auto Balance (Default) setting.
 
