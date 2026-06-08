@@ -1,6 +1,13 @@
-/*! coi-serviceworker v0.1.7 - Guido Zuidhof and contributors, licensed under MIT + Offline Caching Patches */
+/*! coi-serviceworker v0.1.7 - Extended Offline & PWA Pre-caching Support */
 let coepCredentialless = false;
-const CACHE_NAME = "gba-cloud-offline-cache";
+const CACHE_NAME = "gba-cloud-offline-cache-v3";
+
+const PRECACHE_ASSETS = [
+    "/",
+    "/index.html",
+    "/coi-serviceworker.js",
+    "https://cdn.emulatorjs.org/stable/data/loader.js"
+];
 
 // Helper to inject isolation security headers into any response stream
 function injectSecurityHeaders(response) {
@@ -21,7 +28,16 @@ function injectSecurityHeaders(response) {
 }
 
 if (typeof window === 'undefined') {
-    self.addEventListener("install", () => self.skipWaiting());
+    // PWA Pre-caching Core Files
+    self.addEventListener("install", (event) => {
+        self.skipWaiting();
+        event.waitUntil(
+            caches.open(CACHE_NAME).then((cache) => {
+                return cache.addAll(PRECACHE_ASSETS).catch(err => console.warn("Background precache skipped some items."));
+            })
+        );
+    });
+
     self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
     self.addEventListener("message", (ev) => {
@@ -35,7 +51,7 @@ if (typeof window === 'undefined') {
         }
     });
 
-    // Caching Strategy modification for full offline asset independence
+    // Highly persistent Offline-First proxy
     self.addEventListener("fetch", function (event) {
         const r = event.request;
         if (r.cache === "only-if-cached" && r.mode !== "same-origin") return;
@@ -44,7 +60,6 @@ if (typeof window === 'undefined') {
             ? new Request(r, { credentials: "omit" })
             : r;
 
-        // Check if the request targets EmulatorJS CDNs or local application layout
         const isCacheableTarget = r.url.includes("emulatorjs.org") || r.url.includes("jsdelivr.net") || r.url.includes(self.location.origin);
 
         if (isCacheableTarget && r.method === "GET") {
@@ -61,8 +76,8 @@ if (typeof window === 'undefined') {
                         return injectSecurityHeaders(networkResponse);
                     });
                 }).catch((err) => {
-                    console.error("[Offline SW] Fetch fallback error:", err);
-                    return fetch(request);
+                    console.error("[Offline SW] Fetch fallback triggered, attempting to run offline:", err);
+                    return fetch(request); // Fails gracefully 
                 })
             );
         } else {
