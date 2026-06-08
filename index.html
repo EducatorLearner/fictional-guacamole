@@ -5,7 +5,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover,user-scalable=no">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>GBA Cloud Experiment</title>
+    <title>Multi-Core Cloud Experiment (3DS Ready)</title>
     <style>
         :root {
             --primary: #7C4DFF;
@@ -249,7 +249,7 @@
         <div id="launcher">
             <div class="card">
                 <h1>Fast Emulator Experiment</h1>
-                <p>EmulatorJS Architecture Pipeline v2.0</p>
+                <p>GBA, NDS, and 3DS Architecture Pipeline</p>
 
                 <div class="drop-zone" id="drop-game" onclick="document.getElementById('in-file').click()">
                     <span class="drop-label">TAP TO SELECT GAME OR SAVE FILE</span>
@@ -276,7 +276,7 @@
                     </select>
                 </div>
 
-                <input type="file" id="in-file" accept=".gba,.gb,.gbc,.nds,.zip,.sav,.srm,.eclipse,application/json" style="display:none;">
+                <input type="file" id="in-file" accept=".gba,.gb,.gbc,.nds,.3ds,.cci,.cxi,.zip,.sav,.srm,.eclipse,application/json" style="display:none;">
                 <input type="file" id="in-bios" accept=".bin" onchange="handleBios(this)" style="display:none;">
                 <input type="file" id="in-save-direct" accept=".sav,.srm,.eclipse,application/json" style="display:none;">
 
@@ -327,26 +327,20 @@
     </div>
     <script>
         // --- 1. INDEXEDDB ROM LIBRARY & SAVE FILE ARCHITECTURE ---
-        // Feature 2: Added 'saves' objectStore to circumvent 5MB LocalStorage Limitations
+        // V3: Memory-Optimized Pipeline to handle 1GB+ 3DS files without crashing RAM
         const RomLibrary = {
             dbName: 'GBACloudLibrary',
             dbVersion: 2,
-            chunkSize: 1024 * 1024,
+            chunkSize: 5 * 1024 * 1024, // 5MB chunks for better 3DS throughput
 
             init() {
                 return new Promise((resolve, reject) => {
                     const request = indexedDB.open(this.dbName, this.dbVersion);
                     request.onupgradeneeded = (e) => {
                         const db = e.target.result;
-                        if (!db.objectStoreNames.contains('manifest')) {
-                            db.createObjectStore('manifest', { keyPath: 'name' });
-                        }
-                        if (!db.objectStoreNames.contains('chunks')) {
-                            db.createObjectStore('chunks'); 
-                        }
-                        if (!db.objectStoreNames.contains('saves')) {
-                            db.createObjectStore('saves');
-                        }
+                        if (!db.objectStoreNames.contains('manifest')) db.createObjectStore('manifest', { keyPath: 'name' });
+                        if (!db.objectStoreNames.contains('chunks')) db.createObjectStore('chunks'); 
+                        if (!db.objectStoreNames.contains('saves')) db.createObjectStore('saves');
                     };
                     request.onsuccess = () => resolve(request.result);
                     request.onerror = () => reject(request.error);
@@ -355,31 +349,38 @@
 
             async storeRom(file) {
                 const db = await this.init();
-                const buffer = await file.arrayBuffer();
-                const totalChunks = Math.ceil(buffer.byteLength / this.chunkSize);
+                const totalChunks = Math.ceil(file.size / this.chunkSize);
                 
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(['manifest', 'chunks'], 'readwrite');
-                    const manifestStore = tx.objectStore('manifest');
-                    const chunksStore = tx.objectStore('chunks');
-
-                    manifestStore.put({
+                // Write Manifest First
+                await new Promise((resolve, reject) => {
+                     const tx = db.transaction(['manifest'], 'readwrite');
+                     tx.objectStore('manifest').put({
                         name: file.name,
                         size: file.size,
                         chunks: totalChunks,
                         ext: file.name.split('.').pop().toLowerCase(),
                         timestamp: Date.now()
-                    });
-
-                    for (let i = 0; i < totalChunks; i++) {
-                        const start = i * this.chunkSize;
-                        const end = Math.min(start + this.chunkSize, buffer.byteLength);
-                        chunksStore.put(buffer.slice(start, end), `${file.name}_${i}`);
-                    }
-
-                    tx.oncomplete = () => resolve();
-                    tx.onerror = () => reject(tx.error);
+                     });
+                     tx.oncomplete = () => resolve();
+                     tx.onerror = () => reject(tx.error);
                 });
+
+                // MEMORY FIX: Read the file sequentially directly from disk to IDB. 
+                // Do NOT load the entire ArrayBuffer into JS memory or it will OOM on 3DS games.
+                for (let i = 0; i < totalChunks; i++) {
+                    const start = i * this.chunkSize;
+                    const end = Math.min(start + this.chunkSize, file.size);
+                    
+                    const chunkBlob = file.slice(start, end);
+                    const chunkBuffer = await chunkBlob.arrayBuffer();
+                    
+                    await new Promise((resolve, reject) => {
+                        const tx = db.transaction(['chunks'], 'readwrite');
+                        tx.objectStore('chunks').put(chunkBuffer, `${file.name}_${i}`);
+                        tx.oncomplete = () => resolve();
+                        tx.onerror = () => reject(tx.error);
+                    });
+                }
             },
 
             async loadRom(name) {
@@ -388,10 +389,9 @@
                     const tx = db.transaction(['manifest', 'chunks'], 'readonly');
                     const manifestStore = tx.objectStore('manifest');
                     const chunksStore = tx.objectStore('chunks');
-                    const getReq = manifestStore.get(name);
                     
-                    getReq.onsuccess = () => {
-                        const manifest = getReq.result;
+                    manifestStore.get(name).onsuccess = (e) => {
+                        const manifest = e.target.result;
                         if (!manifest) return reject("ROM not found");
 
                         let loadedChunks = 0;
@@ -400,21 +400,16 @@
                         for (let i = 0; i < manifest.chunks; i++) {
                             const chunkReq = chunksStore.get(`${name}_${i}`);
                             chunkReq.onsuccess = () => {
-                                chunksArray[i] = new Uint8Array(chunkReq.result);
+                                chunksArray[i] = chunkReq.result; // Keep as native buffer
                                 loadedChunks++;
                                 
                                 if (loadedChunks === manifest.chunks) {
-                                    const totalLength = chunksArray.reduce((acc, val) => acc + val.length, 0);
-                                    const finalBuffer = new Uint8Array(totalLength);
-                                    let offset = 0;
-                                    for (const chunk of chunksArray) {
-                                        finalBuffer.set(chunk, offset);
-                                        offset += chunk.length;
-                                    }
-                                    const blob = new Blob([finalBuffer]);
+                                    // MEMORY FIX: Let the browser natively merge the blobs. Zero memory penalty.
+                                    const blob = new Blob(chunksArray);
                                     resolve({ url: URL.createObjectURL(blob), ext: manifest.ext, name: manifest.name });
                                 }
                             };
+                            chunkReq.onerror = () => reject("Chunk corrupted");
                         }
                     };
                 });
@@ -529,19 +524,21 @@
         }
 
         async function loadFromLibrary(romName) {
-            statusText.innerText = "Reassembling chunks from IndexedDB...";
+            statusText.innerText = "Reassembling chunks from IndexedDB (may take a moment for 3DS)...";
             try {
                 const gameData = await RomLibrary.loadRom(romName);
                 gameUrl = gameData.url;
                 loadedRomName = gameData.name.substring(0, gameData.name.lastIndexOf('.'));
                 
+                // Enhanced Core Detection Logic
                 if (gameData.ext === 'gb' || gameData.ext === 'gbc') coreType = 'gambatte';
                 else if (gameData.ext === 'nds') coreType = 'melonds';
+                else if (['3ds', 'cci', 'cxi', 'app'].includes(gameData.ext)) coreType = 'azahar';
                 else coreType = 'mgba';
 
                 labelGame.innerText = gameData.name;
                 activateLauncher();
-                statusText.innerText = "Loaded from storage. Ready.";
+                statusText.innerText = `Loaded from storage. ${coreType.toUpperCase()} core ready.`;
             } catch (err) {
                 statusText.innerText = "Failed to load from storage.";
                 console.error(err);
@@ -562,8 +559,9 @@
             const ext = file.name.split('.').pop().toLowerCase();
             loadedRomName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
-            if (['gba', 'gb', 'gbc', 'nds', 'zip'].includes(ext)) {
-                statusText.innerText = "Chunking and saving ROM to library...";
+            // Added 3ds support arrays
+            if (['gba', 'gb', 'gbc', 'nds', '3ds', 'cci', 'cxi', 'zip'].includes(ext)) {
+                statusText.innerText = "Saving game to IndexedDB Library (Please wait if 1GB+)...";
                 try {
                     await RomLibrary.storeRom(file);
                     await updateLibraryUI();
@@ -655,7 +653,6 @@
             document.body.removeChild(link);
         }
 
-        // Feature 3: Structural Upstream Sync API Hook
         function toggleCloudSync(val) {
             cloudSyncEnabled = (val === 'enabled');
             if (cloudSyncEnabled) {
@@ -667,8 +664,6 @@
             if (!cloudSyncEnabled) return;
             console.log(`[Cloud Sync Pipeline] Upstreaming payload mapping for ${romName}...`);
             try {
-                // Drop-in location for user Dropbox / Google Drive REST API integration
-                // Example: await fetch('https://api.example.com/sync', { method: 'POST', body: b64Data })
                 localStorage.setItem(`cloud_backup_mirror_${romName}`, b64Data);
                 console.log("[Cloud Sync] Mirror backup storage synchronized cleanly.");
             } catch (e) {
@@ -676,7 +671,7 @@
             }
         }
 
-        // Feature 1: Mobile Drag-and-Drop Control Coordinate Relocator
+        // Mobile Drag-and-Drop Control Coordinate Relocator
         function toggleLayoutEdit() {
             isEditingLayout = !isEditingLayout;
             const dpad = document.getElementById('dpad');
@@ -737,7 +732,6 @@
             if(sBtns) Object.assign(btns.style, JSON.parse(sBtns));
         }
 
-        // Feature 4: Fast Forward / Turbo Toggle Execution System
         function toggleFastForwardToolbar() {
             ffActive = !ffActive;
             synthKey('Space', ffActive ? 'keydown' : 'keyup');
@@ -761,8 +755,18 @@
             if (biosUrl) window.EJS_biosUrl = biosUrl;
             
             window.EJS_Settings = { frameskip: document.getElementById('select-frameskip').value };
-            window.EJS_coreConfig = { "melonds_threaded_rendering": "enabled", "melonds_screen_layout": "0", "melonds_boot_directly": "enabled" };
-            window.EJS_forceSmooth = false;
+            
+            // Critical 3DS / NDS Core Performance Parameters
+            window.EJS_coreConfig = { 
+                "melonds_threaded_rendering": "enabled", 
+                "melonds_screen_layout": "0", 
+                "melonds_boot_directly": "enabled",
+                // 3DS Hardware Acceleration & JIT Tuning for WebGL performance
+                "azahar_hw_renderer": "enabled",
+                "azahar_shader_jit": "enabled",
+                "azahar_cpu_jit": "enabled"
+            };
+            window.EJS_forceSmooth = false; // Disable generic smoothing to speed up 3DS mapping
             
             if (targetSavePayload) {
                 const b64Str = base64EncodeUint8(targetSavePayload);
@@ -844,6 +848,7 @@
     </script>
 </body>
 </html>
+
 
 
 
