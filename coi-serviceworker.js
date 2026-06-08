@@ -11,7 +11,7 @@ const PRECACHE_ASSETS = [
 
 // Helper to inject isolation security headers into any response stream
 function injectSecurityHeaders(response) {
-    if (response.status === 0) return response;
+    if (!response || response.status === 0) return response;
 
     const newHeaders = new Headers(response.headers);
     newHeaders.set("Cross-Origin-Embedder-Policy", coepCredentialless ? "credentialless" : "require-corp");
@@ -33,12 +33,32 @@ if (typeof window === 'undefined') {
         self.skipWaiting();
         event.waitUntil(
             caches.open(CACHE_NAME).then((cache) => {
-                return cache.addAll(PRECACHE_ASSETS).catch(err => console.warn("Background precache skipped some items."));
+                // Fetch cross-origin precache assets explicitly with CORS to avoid opaque breaks
+                return Promise.all(
+                    PRECACHE_ASSETS.map(url => {
+                        const req = url.startsWith("http") ? new Request(url, { mode: "cors" }) : url;
+                        return cache.add(req).catch(err => console.warn(`Precache skipped: ${url}`, err));
+                    })
+                );
             })
         );
     });
 
-    self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
+    // PWA Activation lifecycle - Explicitly purges obsolete legacy cache blocks
+    self.addEventListener("activate", (event) => {
+        event.waitUntil(
+            caches.keys().then((cacheNames) => {
+                return Promise.all(
+                    cacheNames.map((cache) => {
+                        if (cache !== CACHE_NAME) {
+                            console.log("[Offline SW] Purging obsolete legacy cache structure:", cache);
+                            return caches.delete(cache);
+                        }
+                    })
+                );
+            }).then(() => self.clients.claim())
+        );
+    });
 
     self.addEventListener("message", (ev) => {
         if (!ev.data) return;
@@ -56,11 +76,19 @@ if (typeof window === 'undefined') {
         const r = event.request;
         if (r.cache === "only-if-cached" && r.mode !== "same-origin") return;
 
-        const request = (coepCredentialless && r.mode === "no-cors")
+        // Determine if target falls into our trusted ecosystem CDN bounds
+        const isCacheableTarget = r.url.includes("emulatorjs.org") || r.url.includes("jsdelivr.net") || r.url.includes(self.location.origin);
+
+        // Setup the target request object
+        let request = (coepCredentialless && r.mode === "no-cors")
             ? new Request(r, { credentials: "omit" })
             : r;
 
-        const isCacheableTarget = r.url.includes("emulatorjs.org") || r.url.includes("jsdelivr.net") || r.url.includes(self.location.origin);
+        // CRITICAL OPTIMIZATION: Upgrade cross-origin CDN requests to CORS mode
+        // This converts blocked opaque responses into transparent, clean streams that COEP allows
+        if (isCacheableTarget && (r.url.includes("emulatorjs.org") || r.url.includes("jsdelivr.net")) && r.mode !== "cors" && r.mode !== "navigate") {
+            request = new Request(r, { mode: "cors" });
+        }
 
         if (isCacheableTarget && r.method === "GET") {
             event.respondWith(
@@ -69,23 +97,31 @@ if (typeof window === 'undefined') {
                         return injectSecurityHeaders(cachedResponse);
                     }
                     return fetch(request).then((networkResponse) => {
-                        const copy = networkResponse.clone();
-                        caches.open(CACHE_NAME).then((cache) => {
-                            cache.put(request, copy);
-                        });
+                        // Only cache valid successful asset responses to prevent caching broken errors
+                        if (networkResponse.status === 200 || networkResponse.status === 0) {
+                            const copy = networkResponse.clone();
+                            caches.open(CACHE_NAME).then((cache) => {
+                                cache.put(request, copy);
+                            });
+                        }
                         return injectSecurityHeaders(networkResponse);
                     });
                 }).catch((err) => {
                     console.error("[Offline SW] Fetch fallback triggered, attempting to run offline:", err);
-                    return fetch(request); // Fails gracefully 
+                    return fetch(request);
                 })
             );
         } else {
-            event.respondWith(fetch(request).then((res) => injectSecurityHeaders(res)).catch((e) => console.error(e)));
+            event.respondWith(
+                fetch(request)
+                    .then((res) => injectSecurityHeaders(res))
+                    .catch((e) => console.error("[Offline SW] Direct Fetch bypass exception:", e))
+            );
         }
     });
 
 } else {
+    // --- Front-end Window Isolation Context Handshake ---
     (() => {
         const reloadedBySelf = window.sessionStorage.getItem("coiReloadedBySelf");
         window.sessionStorage.removeItem("coiReloadedBySelf");
