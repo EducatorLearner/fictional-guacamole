@@ -1,17 +1,10 @@
-/*! coi-serviceworker v0.1.7 - Extended Offline & PWA Pre-caching Support */
+/*! coi-serviceworker v0.1.7 - Guido Zuidhof and contributors, licensed under MIT + Offline Caching Patches */
 let coepCredentialless = false;
-const CACHE_NAME = "gba-cloud-offline-cache-v3";
-
-const PRECACHE_ASSETS = [
-    "/",
-    "/index.html",
-    "/coi-serviceworker.js",
-    "https://cdn.emulatorjs.org/stable/data/loader.js"
-];
+const CACHE_NAME = "gba-cloud-offline-cache";
 
 // Helper to inject isolation security headers into any response stream
 function injectSecurityHeaders(response) {
-    if (!response || response.status === 0) return response;
+    if (response.status === 0) return response;
 
     const newHeaders = new Headers(response.headers);
     newHeaders.set("Cross-Origin-Embedder-Policy", coepCredentialless ? "credentialless" : "require-corp");
@@ -28,37 +21,8 @@ function injectSecurityHeaders(response) {
 }
 
 if (typeof window === 'undefined') {
-    // PWA Pre-caching Core Files
-    self.addEventListener("install", (event) => {
-        self.skipWaiting();
-        event.waitUntil(
-            caches.open(CACHE_NAME).then((cache) => {
-                // Fetch cross-origin precache assets explicitly with CORS to avoid opaque breaks
-                return Promise.all(
-                    PRECACHE_ASSETS.map(url => {
-                        const req = url.startsWith("http") ? new Request(url, { mode: "cors" }) : url;
-                        return cache.add(req).catch(err => console.warn(`Precache skipped: ${url}`, err));
-                    })
-                );
-            })
-        );
-    });
-
-    // PWA Activation lifecycle - Explicitly purges obsolete legacy cache blocks
-    self.addEventListener("activate", (event) => {
-        event.waitUntil(
-            caches.keys().then((cacheNames) => {
-                return Promise.all(
-                    cacheNames.map((cache) => {
-                        if (cache !== CACHE_NAME) {
-                            console.log("[Offline SW] Purging obsolete legacy cache structure:", cache);
-                            return caches.delete(cache);
-                        }
-                    })
-                );
-            }).then(() => self.clients.claim())
-        );
-    });
+    self.addEventListener("install", () => self.skipWaiting());
+    self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
     self.addEventListener("message", (ev) => {
         if (!ev.data) return;
@@ -71,24 +35,17 @@ if (typeof window === 'undefined') {
         }
     });
 
-    // Highly persistent Offline-First proxy
+    // Caching Strategy modification for full offline asset independence
     self.addEventListener("fetch", function (event) {
         const r = event.request;
         if (r.cache === "only-if-cached" && r.mode !== "same-origin") return;
 
-        // Determine if target falls into our trusted ecosystem CDN bounds
-        const isCacheableTarget = r.url.includes("emulatorjs.org") || r.url.includes("jsdelivr.net") || r.url.includes(self.location.origin);
-
-        // Setup the target request object
-        let request = (coepCredentialless && r.mode === "no-cors")
+        const request = (coepCredentialless && r.mode === "no-cors")
             ? new Request(r, { credentials: "omit" })
             : r;
 
-        // CRITICAL OPTIMIZATION: Upgrade cross-origin CDN requests to CORS mode
-        // This converts blocked opaque responses into transparent, clean streams that COEP allows
-        if (isCacheableTarget && (r.url.includes("emulatorjs.org") || r.url.includes("jsdelivr.net")) && r.mode !== "cors" && r.mode !== "navigate") {
-            request = new Request(r, { mode: "cors" });
-        }
+        // Check if the request targets EmulatorJS CDNs or local application layout
+        const isCacheableTarget = r.url.includes("emulatorjs.org") || r.url.includes("jsdelivr.net") || r.url.includes(self.location.origin);
 
         if (isCacheableTarget && r.method === "GET") {
             event.respondWith(
@@ -97,31 +54,23 @@ if (typeof window === 'undefined') {
                         return injectSecurityHeaders(cachedResponse);
                     }
                     return fetch(request).then((networkResponse) => {
-                        // Only cache valid successful asset responses to prevent caching broken errors
-                        if (networkResponse.status === 200 || networkResponse.status === 0) {
-                            const copy = networkResponse.clone();
-                            caches.open(CACHE_NAME).then((cache) => {
-                                cache.put(request, copy);
-                            });
-                        }
+                        const copy = networkResponse.clone();
+                        caches.open(CACHE_NAME).then((cache) => {
+                            cache.put(request, copy);
+                        });
                         return injectSecurityHeaders(networkResponse);
                     });
                 }).catch((err) => {
-                    console.error("[Offline SW] Fetch fallback triggered, attempting to run offline:", err);
+                    console.error("[Offline SW] Fetch fallback error:", err);
                     return fetch(request);
                 })
             );
         } else {
-            event.respondWith(
-                fetch(request)
-                    .then((res) => injectSecurityHeaders(res))
-                    .catch((e) => console.error("[Offline SW] Direct Fetch bypass exception:", e))
-            );
+            event.respondWith(fetch(request).then((res) => injectSecurityHeaders(res)).catch((e) => console.error(e)));
         }
     });
 
 } else {
-    // --- Front-end Window Isolation Context Handshake ---
     (() => {
         const reloadedBySelf = window.sessionStorage.getItem("coiReloadedBySelf");
         window.sessionStorage.removeItem("coiReloadedBySelf");
