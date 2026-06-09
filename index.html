@@ -327,6 +327,7 @@
     </div>
     <script>
         // --- 1. INDEXEDDB ROM LIBRARY & SAVE FILE ARCHITECTURE ---
+        // Feature 2: Added 'saves' objectStore to circumvent 5MB LocalStorage Limitations
         const RomLibrary = {
             dbName: 'GBACloudLibrary',
             dbVersion: 2,
@@ -353,12 +354,6 @@
             },
 
             async storeRom(file) {
-                // Direct Play Memory Optimization Bypass: Prevent serialization overhead for massive files
-                if (file.size > 100 * 1024 * 1024) {
-                    console.log("Large file execution path. Activating Direct-Play Pipeline Bypass.");
-                    return; 
-                }
-
                 const db = await this.init();
                 const buffer = await file.arrayBuffer();
                 const totalChunks = Math.ceil(buffer.byteLength / this.chunkSize);
@@ -456,6 +451,7 @@
                 });
             },
 
+            // High capacity IndexedDB Save bindings
             async storeSave(romName, b64Data) {
                 const db = await this.init();
                 return new Promise((resolve, reject) => {
@@ -567,19 +563,6 @@
             loadedRomName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
 
             if (['gba', 'gb', 'gbc', 'nds', 'zip'].includes(ext)) {
-                if (ext === 'gb' || ext === 'gbc') coreType = 'gambatte';
-                else if (ext === 'nds') coreType = 'melonds';
-                else coreType = 'mgba';
-
-                // Direct Play Memory Optimization Bypass Configuration
-                if (file.size > 100 * 1024 * 1024) {
-                    statusText.innerText = `Large ROM Verified (${(file.size / (1024 * 1024)).toFixed(2)} MB). Bypassing IndexedDB writing overhead...`;
-                    gameUrl = URL.createObjectURL(file);
-                    labelGame.innerText = file.name;
-                    activateLauncher();
-                    return;
-                }
-
                 statusText.innerText = "Chunking and saving ROM to library...";
                 try {
                     await RomLibrary.storeRom(file);
@@ -672,6 +655,7 @@
             document.body.removeChild(link);
         }
 
+        // Feature 3: Structural Upstream Sync API Hook
         function toggleCloudSync(val) {
             cloudSyncEnabled = (val === 'enabled');
             if (cloudSyncEnabled) {
@@ -683,6 +667,8 @@
             if (!cloudSyncEnabled) return;
             console.log(`[Cloud Sync Pipeline] Upstreaming payload mapping for ${romName}...`);
             try {
+                // Drop-in location for user Dropbox / Google Drive REST API integration
+                // Example: await fetch('https://api.example.com/sync', { method: 'POST', body: b64Data })
                 localStorage.setItem(`cloud_backup_mirror_${romName}`, b64Data);
                 console.log("[Cloud Sync] Mirror backup storage synchronized cleanly.");
             } catch (e) {
@@ -690,6 +676,7 @@
             }
         }
 
+        // Feature 1: Mobile Drag-and-Drop Control Coordinate Relocator
         function toggleLayoutEdit() {
             isEditingLayout = !isEditingLayout;
             const dpad = document.getElementById('dpad');
@@ -750,6 +737,7 @@
             if(sBtns) Object.assign(btns.style, JSON.parse(sBtns));
         }
 
+        // Feature 4: Fast Forward / Turbo Toggle Execution System
         function toggleFastForwardToolbar() {
             ffActive = !ffActive;
             synthKey('Space', ffActive ? 'keydown' : 'keyup');
@@ -765,8 +753,6 @@
             launcher.classList.add('hidden');
             setTimeout(() => launcher.style.display = 'none', 400);
 
-            const frameSkipVal = parseInt(document.getElementById('select-frameskip').value) || 1;
-
             window.EJS_player = '#game';
             window.EJS_core = coreType;
             window.EJS_pathtodata = 'https://cdn.emulatorjs.org/stable/data/';
@@ -774,15 +760,7 @@
             window.EJS_gameUrl = gameUrl;
             if (biosUrl) window.EJS_biosUrl = biosUrl;
             
-            // Integrated Frame Sync/Skip & Threaded WebAssembly multi-threading settings
-            window.EJS_Settings = { 
-                showMenu: false,
-                frameSkip: frameSkipVal === 1 ? 0 : frameSkipVal,
-                frameskip: frameSkipVal === 1 ? 0 : frameSkipVal, // Handles discrepancies across core options
-                autoFastForward: frameSkipVal === 1,
-                ThreadedWasm: true // Triggers multi-threading support enabled by coi-serviceworker
-            };
-            
+            window.EJS_Settings = { frameskip: document.getElementById('select-frameskip').value };
             window.EJS_coreConfig = { "melonds_threaded_rendering": "enabled", "melonds_screen_layout": "0", "melonds_boot_directly": "enabled" };
             window.EJS_forceSmooth = false;
             
@@ -866,6 +844,11 @@
     </script>
 </body>
 </html>
+
+
+
+
+
 
 
 
