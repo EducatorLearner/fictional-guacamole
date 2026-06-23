@@ -327,7 +327,6 @@
     </div>
     <script>
         // --- 1. INDEXEDDB ROM LIBRARY & SAVE FILE ARCHITECTURE ---
-        // Feature 2: Added 'saves' objectStore to circumvent 5MB LocalStorage Limitations
         const RomLibrary = {
             dbName: 'GBACloudLibrary',
             dbVersion: 2,
@@ -451,7 +450,6 @@
                 });
             },
 
-            // High capacity IndexedDB Save bindings
             async storeSave(romName, b64Data) {
                 const db = await this.init();
                 return new Promise((resolve, reject) => {
@@ -655,7 +653,6 @@
             document.body.removeChild(link);
         }
 
-        // Feature 3: Structural Upstream Sync API Hook
         function toggleCloudSync(val) {
             cloudSyncEnabled = (val === 'enabled');
             if (cloudSyncEnabled) {
@@ -667,8 +664,6 @@
             if (!cloudSyncEnabled) return;
             console.log(`[Cloud Sync Pipeline] Upstreaming payload mapping for ${romName}...`);
             try {
-                // Drop-in location for user Dropbox / Google Drive REST API integration
-                // Example: await fetch('https://api.example.com/sync', { method: 'POST', body: b64Data })
                 localStorage.setItem(`cloud_backup_mirror_${romName}`, b64Data);
                 console.log("[Cloud Sync] Mirror backup storage synchronized cleanly.");
             } catch (e) {
@@ -676,7 +671,6 @@
             }
         }
 
-        // Feature 1: Mobile Drag-and-Drop Control Coordinate Relocator
         function toggleLayoutEdit() {
             isEditingLayout = !isEditingLayout;
             const dpad = document.getElementById('dpad');
@@ -737,7 +731,6 @@
             if(sBtns) Object.assign(btns.style, JSON.parse(sBtns));
         }
 
-        // Feature 4: Fast Forward / Turbo Toggle Execution System
         function toggleFastForwardToolbar() {
             ffActive = !ffActive;
             synthKey('Space', ffActive ? 'keydown' : 'keyup');
@@ -844,12 +837,3 @@
     </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
