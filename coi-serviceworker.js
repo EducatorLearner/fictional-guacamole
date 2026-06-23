@@ -1,9 +1,9 @@
-/*! coi-serviceworker v0.1.7 - Guido Zuidhof and contributors, licensed under MIT + Offline Caching Patches */
+/*! coi-serviceworker v0.1.7 - Guido Zuidhof and contributors, licensed under MIT + Offline Caching Patches & WASM Fix */
 let coepCredentialless = false;
 const CACHE_NAME = "gba-cloud-offline-cache";
 
 // Helper to inject isolation security headers into any response stream
-function injectSecurityHeaders(response) {
+function injectSecurityHeaders(request, response) {
     if (response.status === 0) return response;
 
     const newHeaders = new Headers(response.headers);
@@ -12,6 +12,18 @@ function injectSecurityHeaders(response) {
         newHeaders.set("Cross-Origin-Resource-Policy", "cross-origin");
     }
     newHeaders.set("Cross-Origin-Opener-Policy", "same-origin");
+
+    // --- THE PATCH: Fix the Legacy WASM Error ---
+    // CORS restricts access to original headers on cross-origin requests.
+    // We must manually reconstruct the Content-Type based on the URL so WebAssembly streaming doesn't crash.
+    const url = request.url || "";
+    if (url.endsWith(".wasm")) {
+        newHeaders.set("Content-Type", "application/wasm");
+    } else if (url.endsWith(".js")) {
+        newHeaders.set("Content-Type", "application/javascript");
+    } else if (url.endsWith(".json")) {
+        newHeaders.set("Content-Type", "application/json");
+    }
 
     return new Response(response.body, {
         status: response.status,
@@ -51,14 +63,14 @@ if (typeof window === 'undefined') {
             event.respondWith(
                 caches.match(request).then((cachedResponse) => {
                     if (cachedResponse) {
-                        return injectSecurityHeaders(cachedResponse);
+                        return injectSecurityHeaders(request, cachedResponse);
                     }
                     return fetch(request).then((networkResponse) => {
                         const copy = networkResponse.clone();
                         caches.open(CACHE_NAME).then((cache) => {
                             cache.put(request, copy);
                         });
-                        return injectSecurityHeaders(networkResponse);
+                        return injectSecurityHeaders(request, networkResponse);
                     });
                 }).catch((err) => {
                     console.error("[Offline SW] Fetch fallback error:", err);
@@ -66,7 +78,7 @@ if (typeof window === 'undefined') {
                 })
             );
         } else {
-            event.respondWith(fetch(request).then((res) => injectSecurityHeaders(res)).catch((e) => console.error(e)));
+            event.respondWith(fetch(request).then((res) => injectSecurityHeaders(request, res)).catch((e) => console.error(e)));
         }
     });
 
