@@ -30,3 +30,6 @@ Deployment Rules:Both index.html and coi-serviceworker.js must stay together in 
 
 ⚠️ Performance Note: Setting the frame cap setting to 3 frames might make gameplay look choppy. A setting of 2 frames is acceptable for slower devices, but it is highly recommended to leave it on the Auto Balance (Default) setting.
 
+NEWEST UPDATE: Implementation with yourworstnightmare1s github proxy list.
+
+
